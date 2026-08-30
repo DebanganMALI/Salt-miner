@@ -43,6 +43,24 @@ const PREFIX_RULES: &[(&str, &str, &str)] = &[
     ),
 ];
 
+/// True if the text is non-empty and every character is a hex digit.
+fn is_hex(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Algorithms that produce a hex string of this length, most common first.
+fn length_rules(len: usize) -> &'static [&'static str] {
+    match len {
+        32 => &["MD5", "NTLM", "MD4", "RIPEMD-128"],
+        40 => &["SHA-1", "RIPEMD-160"],
+        56 => &["SHA-224", "SHA3-224"],
+        64 => &["SHA-256", "SHA3-256", "BLAKE2s-256"],
+        96 => &["SHA-384", "SHA3-384"],
+        128 => &["SHA-512", "SHA3-512", "BLAKE2b-512"],
+        _ => &[],
+    }
+}
+
 /// Identify a hash string. Returns a ranked list of candidates.
 pub fn identify(input: &str) -> Vec<Candidate> {
     let trimmed = input.trim();
@@ -59,6 +77,29 @@ pub fn identify(input: &str) -> Vec<Candidate> {
                 reason: format!("prefix {prefix} — {note}"),
             }];
         }
+    }
+
+    if is_hex(trimmed) {
+        let algorithms = length_rules(trimmed.len());
+        let mut candidates = Vec::new();
+        for (index, algorithm) in algorithms.iter().enumerate() {
+            let confidence = if index == 0 {
+                Confidence::Medium
+            } else {
+                Confidence::Low
+            };
+            let label = if index == 0 {
+                "most likely at this length"
+            } else {
+                "also possible at this length"
+            };
+            candidates.push(Candidate {
+                algorithm: algorithm.to_string(),
+                confidence,
+                reason: format!("{} hex chars — {label}", trimmed.len()),
+            });
+        }
+        return candidates;
     }
 
     Vec::new()
@@ -84,6 +125,22 @@ mod tests {
     fn argon2id_prefix_is_recognized() {
         let result = identify("$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA");
         assert_eq!(result[0].algorithm, "Argon2id");
+    }
+
+    #[test]
+    fn md5_length_is_medium_confidence() {
+        let result = identify("5f4dcc3b5aa765d61d8327deb882cf99");
+        assert_eq!(result[0].algorithm, "MD5");
+        assert_eq!(result[0].confidence, Confidence::Medium);
+        let names: Vec<&str> = result.iter().map(|c| c.algorithm.as_str()).collect();
+        assert!(names.contains(&"NTLM"));
+    }
+
+    #[test]
+    fn sha256_length_is_recognized() {
+        let hash = "a".repeat(64);
+        let result = identify(&hash);
+        assert_eq!(result[0].algorithm, "SHA-256");
     }
 
     #[test]
