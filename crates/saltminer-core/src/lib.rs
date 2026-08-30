@@ -158,6 +158,23 @@ pub fn identify(input: &str) -> Vec<Candidate> {
         return candidates;
     }
 
+    // Not hashes, but say what they actually are.
+    if trimmed.starts_with("eyJ") {
+        return vec![Candidate {
+            algorithm: "JWT (not a hash)".to_string(),
+            confidence: Confidence::Low,
+            reason: "leading `eyJ` is base64 of `{\"` — a JWT, not a hash".to_string(),
+        }];
+    }
+
+    if trimmed.len() > 8 && trimmed.contains(['+', '/', '=']) {
+        return vec![Candidate {
+            algorithm: "Base64 blob (not a hash)".to_string(),
+            confidence: Confidence::Low,
+            reason: "contains base64-only chars (`+`, `/`, `=`)".to_string(),
+        }];
+    }
+
     Vec::new()
 }
 
@@ -229,6 +246,19 @@ mod tests {
         let sample = "Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::";
         let result = identify(sample);
         assert_eq!(result[0].algorithm, "NTLM");
+    }
+
+    #[test]
+    fn jwt_is_flagged_as_not_a_hash() {
+        let result = identify("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig");
+        assert!(result[0].algorithm.contains("JWT"));
+        assert_eq!(result[0].confidence, Confidence::Low);
+    }
+
+    #[test]
+    fn base64_blob_is_flagged_as_not_a_hash() {
+        let result = identify("VGhpcyBpcyBub3QgYSBoYXNoLg==");
+        assert!(result[0].algorithm.contains("Base64"));
     }
 
     #[test]
