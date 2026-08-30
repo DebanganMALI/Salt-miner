@@ -265,4 +265,27 @@ mod tests {
     fn unknown_input_returns_empty() {
         assert!(identify("just some random text").is_empty());
     }
+
+    #[test]
+    fn sha1_length_is_recognized() {
+        let result = identify(&"a".repeat(40));
+        assert_eq!(result[0].algorithm, "SHA-1");
+    }
+
+    #[test]
+    fn netntlmv1_is_recognized() {
+        let sample = format!(
+            "alice::CORP:{}:{}:1122334455667788",
+            "a".repeat(48),
+            "b".repeat(48)
+        );
+        let result = identify(&sample);
+        assert_eq!(result[0].algorithm, "NetNTLMv1");
+    }
+
+    #[test]
+    fn whitespace_is_trimmed() {
+        let result = identify("  5f4dcc3b5aa765d61d8327deb882cf99\n");
+        assert_eq!(result[0].algorithm, "MD5");
+    }
 }
