@@ -1,0 +1,13 @@
+[package]
+name = "saltminer-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "saltminer"
+path = "src/main.rs"
+
+[dependencies]
+saltminer-core = { path = "../saltminer-core" }
+clap = { version = "4", features = ["derive"] }

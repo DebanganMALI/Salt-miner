@@ -23,3 +23,7 @@ fmt:
 # build everything
 build:
     cargo build --all-targets
+
+# identify a hash, e.g. just run 5f4dcc3b5aa765d61d8327deb882cf99
+run *ARGS:
+    cargo run -p saltminer-cli -- {{ARGS}}
