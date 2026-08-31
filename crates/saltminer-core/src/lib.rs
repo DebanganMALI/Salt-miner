@@ -521,4 +521,29 @@ mod tests {
         let report = audit("$1$salt$abcdefghijklmnopqrstuv").unwrap();
         assert_eq!(report.verdict, Verdict::Deprecated);
     }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn identify_never_panics(input in ".*") {
+            let _ = identify(&input);
+        }
+
+        #[test]
+        fn parse_phc_never_panics(input in ".*") {
+            let _ = parse_phc(&input);
+        }
+
+        #[test]
+        fn audit_never_panics(input in ".*") {
+            let _ = audit(&input);
+        }
+
+        #[test]
+        fn any_32_hex_is_md5_first(hex in "[0-9a-f]{32}") {
+            let result = identify(&hex);
+            prop_assert_eq!(result[0].algorithm.as_str(), "MD5");
+        }
+    }
 }
