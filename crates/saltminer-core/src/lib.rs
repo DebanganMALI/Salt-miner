@@ -71,6 +71,52 @@ fn length_rules(len: usize) -> &'static [&'static str] {
     }
 }
 
+/// A parsed PHC-style hash string, broken into its parts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhcHash {
+    pub id: String,
+    pub params: Vec<(String, String)>,
+    pub segments: Vec<String>,
+}
+
+impl PhcHash {
+    /// Get the value of a named parameter, if present.
+    pub fn param(&self, key: &str) -> Option<&str> {
+        self.params
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+/// Parse a PHC-style string like `$argon2id$v=19$m=65536,t=3,p=4$salt$hash`.
+/// Returns `None` if the input has no `$`-separated structure.
+pub fn parse_phc(input: &str) -> Option<PhcHash> {
+    let text = input.trim();
+    let body = text.strip_prefix('$').unwrap_or(text);
+    let segments: Vec<String> = body.split('$').map(str::to_string).collect();
+
+    if segments.len() < 2 || segments[0].is_empty() {
+        return None;
+    }
+
+    let id = segments[0].clone();
+    let mut params = Vec::new();
+    for seg in &segments[1..] {
+        for pair in seg.split(',') {
+            if let Some((key, value)) = pair.split_once('=') {
+                params.push((key.to_string(), value.to_string()));
+            }
+        }
+    }
+
+    Some(PhcHash {
+        id,
+        params,
+        segments,
+    })
+}
+
 /// Identify a hash string. Returns a ranked list of candidates.
 pub fn identify(input: &str) -> Vec<Candidate> {
     let trimmed = input.trim();
@@ -287,5 +333,27 @@ mod tests {
     fn whitespace_is_trimmed() {
         let result = identify("  5f4dcc3b5aa765d61d8327deb882cf99\n");
         assert_eq!(result[0].algorithm, "MD5");
+    }
+
+    #[test]
+    fn parses_argon2id_params() {
+        let phc = parse_phc("$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA").unwrap();
+        assert_eq!(phc.id, "argon2id");
+        assert_eq!(phc.param("m"), Some("65536"));
+        assert_eq!(phc.param("t"), Some("3"));
+        assert_eq!(phc.param("p"), Some("4"));
+    }
+
+    #[test]
+    fn parses_bcrypt_cost_segment() {
+        let phc = parse_phc("$2b$12$abcdefghijklmnopqrstuv").unwrap();
+        assert_eq!(phc.id, "2b");
+        assert_eq!(phc.segments[1], "12");
+    }
+
+    #[test]
+    fn non_phc_returns_none() {
+        assert!(parse_phc("5f4dcc3b5aa765d61d8327deb882cf99").is_none());
+        assert!(parse_phc("hello").is_none());
     }
 }
