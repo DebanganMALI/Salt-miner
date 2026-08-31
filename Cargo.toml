@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/saltminer-core", "crates/saltminer-cli"]
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.0.1"
