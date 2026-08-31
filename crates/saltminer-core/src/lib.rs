@@ -117,6 +117,135 @@ pub fn parse_phc(input: &str) -> Option<PhcHash> {
     })
 }
 
+/// A security verdict on how a hash was produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verdict {
+    Secure,
+    WeakParams,
+    Deprecated,
+    Broken,
+}
+
+/// The result of auditing a hash's algorithm and cost parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditReport {
+    pub algorithm: String,
+    pub verdict: Verdict,
+    pub detail: String,
+}
+
+// OWASP 2026 password-storage minimums.
+const ARGON2_MIN_MEMORY_KIB: u32 = 19_456; // 19 MiB
+const BCRYPT_MIN_COST: u32 = 10;
+const PBKDF2_MIN_ITERATIONS: u32 = 600_000;
+
+/// Judge a hash against OWASP 2026 password-storage guidance.
+pub fn audit(input: &str) -> Option<AuditReport> {
+    if let Some(phc) = parse_phc(input) {
+        return audit_phc(&phc);
+    }
+
+    // Not a PHC string: judge common raw hashes by what identify() sees.
+    let candidates = identify(input);
+    let first = candidates.first()?;
+    const BROKEN: &[&str] = &["MD5", "SHA-1", "NTLM", "MySQL5", "MySQL323", "MD4"];
+    if BROKEN.contains(&first.algorithm.as_str()) {
+        return Some(AuditReport {
+            algorithm: first.algorithm.clone(),
+            verdict: Verdict::Broken,
+            detail: "fast, unsalted hash — not safe for passwords; use Argon2id".to_string(),
+        });
+    }
+
+    None
+}
+
+/// Rate a parsed PHC hash. Returns None for formats we do not rate.
+fn audit_phc(phc: &PhcHash) -> Option<AuditReport> {
+    let report = match phc.id.as_str() {
+        "argon2id" | "argon2i" | "argon2d" => {
+            let memory = phc
+                .param("m")
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(0);
+            let (verdict, detail) = if memory < ARGON2_MIN_MEMORY_KIB {
+                (
+                    Verdict::WeakParams,
+                    format!("memory {memory} KiB is below the 19 MiB minimum"),
+                )
+            } else {
+                (
+                    Verdict::Secure,
+                    format!("memory {memory} KiB meets current guidance"),
+                )
+            };
+            AuditReport {
+                algorithm: "Argon2".to_string(),
+                verdict,
+                detail,
+            }
+        }
+        "2a" | "2b" | "2y" | "2x" => {
+            let cost = phc
+                .segments
+                .get(1)
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(0);
+            let (verdict, detail) = if cost < BCRYPT_MIN_COST {
+                (
+                    Verdict::WeakParams,
+                    format!("cost {cost} is below the minimum of {BCRYPT_MIN_COST}"),
+                )
+            } else {
+                (
+                    Verdict::Secure,
+                    format!("cost {cost} meets current guidance"),
+                )
+            };
+            AuditReport {
+                algorithm: "bcrypt".to_string(),
+                verdict,
+                detail,
+            }
+        }
+        "pbkdf2_sha256" => {
+            let iters = phc
+                .segments
+                .get(1)
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(0);
+            let (verdict, detail) = if iters < PBKDF2_MIN_ITERATIONS {
+                (
+                    Verdict::WeakParams,
+                    format!("{iters} iterations is below the 600,000 minimum"),
+                )
+            } else {
+                (
+                    Verdict::Secure,
+                    format!("{iters} iterations meets current guidance"),
+                )
+            };
+            AuditReport {
+                algorithm: "PBKDF2-SHA256".to_string(),
+                verdict,
+                detail,
+            }
+        }
+        "1" | "apr1" => AuditReport {
+            algorithm: "MD5-based crypt".to_string(),
+            verdict: Verdict::Deprecated,
+            detail: "MD5-based — obsolete; migrate to Argon2id or bcrypt".to_string(),
+        },
+        "6" => AuditReport {
+            algorithm: "SHA-512 crypt".to_string(),
+            verdict: Verdict::Secure,
+            detail: "SHA-512 crypt is acceptable when rounds are high enough".to_string(),
+        },
+        _ => return None,
+    };
+    Some(report)
+}
+
 /// Identify a hash string. Returns a ranked list of candidates.
 pub fn identify(input: &str) -> Vec<Candidate> {
     let trimmed = input.trim();
@@ -355,5 +484,41 @@ mod tests {
     fn non_phc_returns_none() {
         assert!(parse_phc("5f4dcc3b5aa765d61d8327deb882cf99").is_none());
         assert!(parse_phc("hello").is_none());
+    }
+
+    #[test]
+    fn strong_argon2id_is_secure() {
+        let report = audit("$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA").unwrap();
+        assert_eq!(report.verdict, Verdict::Secure);
+    }
+
+    #[test]
+    fn weak_argon2id_memory_is_flagged() {
+        let report = audit("$argon2id$v=19$m=1024,t=1,p=1$c2FsdA$aGFzaA").unwrap();
+        assert_eq!(report.verdict, Verdict::WeakParams);
+    }
+
+    #[test]
+    fn low_bcrypt_cost_is_weak() {
+        let report = audit("$2b$04$abcdefghijklmnopqrstuv").unwrap();
+        assert_eq!(report.verdict, Verdict::WeakParams);
+    }
+
+    #[test]
+    fn strong_bcrypt_cost_is_secure() {
+        let report = audit("$2b$12$abcdefghijklmnopqrstuv").unwrap();
+        assert_eq!(report.verdict, Verdict::Secure);
+    }
+
+    #[test]
+    fn raw_md5_is_broken() {
+        let report = audit("5f4dcc3b5aa765d61d8327deb882cf99").unwrap();
+        assert_eq!(report.verdict, Verdict::Broken);
+    }
+
+    #[test]
+    fn md5_crypt_is_deprecated() {
+        let report = audit("$1$salt$abcdefghijklmnopqrstuv").unwrap();
+        assert_eq!(report.verdict, Verdict::Deprecated);
     }
 }
