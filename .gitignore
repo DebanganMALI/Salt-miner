@@ -4,3 +4,6 @@
 .DS_Store
 Thumbs.db
 AGENTS.md
+.venv/
+__pycache__/
+*.pyd
