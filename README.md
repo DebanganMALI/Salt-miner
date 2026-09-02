@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/DebanganMALI/Salt-miner/actions/workflows/ci.yml/badge.svg)](https://github.com/DebanganMALI/Salt-miner/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/saltminer.svg)](https://pypi.org/project/saltminer/)
-[![Python](https://img.shields.io/pypi/pyversions/saltminer.svg)](https://pypi.org/project/saltminer/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/saltminer/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
