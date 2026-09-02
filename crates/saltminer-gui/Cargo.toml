@@ -1,0 +1,12 @@
+[package]
+name = "saltminer-gui"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+eframe = "0.29"
+image = "0.25"
+saltminer-core = { path = "../saltminer-core" }
+
+[workspace]

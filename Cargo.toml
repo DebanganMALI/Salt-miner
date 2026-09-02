@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/saltminer-core", "crates/saltminer-cli"]
-exclude = ["fuzz", "crates/saltminer-py"]
+exclude = ["fuzz", "crates/saltminer-py", "crates/saltminer-gui"]
 
 [workspace.package]
 version = "0.0.1"
