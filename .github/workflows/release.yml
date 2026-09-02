@@ -62,7 +62,8 @@ jobs:
           path: dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-
+        with:
+          skip-existing: true
   binaries:
     strategy:
       matrix:
@@ -113,3 +114,4 @@ jobs:
         with:
           files: dist-bin/*
           generate_release_notes: true
+
