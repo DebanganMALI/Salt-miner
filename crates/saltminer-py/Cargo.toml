@@ -9,7 +9,7 @@ name = "saltminer"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.23", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py310", "generate-import-lib"] }
 saltminer-core = { path = "../saltminer-core" }
 
 [workspace]
