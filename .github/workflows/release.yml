@@ -62,3 +62,54 @@ jobs:
           path: dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x86_64
+            ext: ""
+          - os: windows-latest
+            label: windows-x86_64
+            ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install GUI dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev
+      - name: Build CLI
+        run: cargo build --release -p saltminer-cli
+      - name: Build GUI
+        run: cargo build --release --manifest-path crates/saltminer-gui/Cargo.toml
+      - name: Collect binaries
+        shell: bash
+        run: |
+          mkdir dist-bin
+          cp target/release/saltminer${{ matrix.ext }} "dist-bin/saltminer-cli-${{ matrix.label }}${{ matrix.ext }}"
+          cp crates/saltminer-gui/target/release/saltminer-gui${{ matrix.ext }} "dist-bin/saltminer-gui-${{ matrix.label }}${{ matrix.ext }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.label }}
+          path: dist-bin
+
+  gh-release:
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          merge-multiple: true
+          path: dist-bin
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-bin/*
+          generate_release_notes: true
