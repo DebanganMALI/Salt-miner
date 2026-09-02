@@ -7,7 +7,7 @@
 **Identify and audit password hashes — offline, in one tool.**
 
 [![CI](https://github.com/DebanganMALI/Salt-miner/actions/workflows/ci.yml/badge.svg)](https://github.com/DebanganMALI/Salt-miner/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/saltminer.svg)](https://pypi.org/project/saltminer/)
+[![PyPI](https://img.shields.io/pypi/v/saltminer.svg?cacheSeconds=1800)](https://pypi.org/project/saltminer/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/saltminer/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
