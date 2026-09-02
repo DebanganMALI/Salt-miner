@@ -7,3 +7,4 @@ AGENTS.md
 .venv/
 __pycache__/
 *.pyd
+**/target/
