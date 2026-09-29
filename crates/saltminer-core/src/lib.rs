@@ -18,6 +18,7 @@ pub struct Candidate {
 
 /// Known hash prefixes: (prefix, algorithm, note).
 const PREFIX_RULES: &[(&str, &str, &str)] = &[
+    // Argon2 family
     (
         "$argon2id$",
         "Argon2id",
@@ -29,18 +30,49 @@ const PREFIX_RULES: &[(&str, &str, &str)] = &[
         "PHC string, side-channel-resistant variant",
     ),
     ("$argon2d$", "Argon2d", "PHC string, GPU-resistant variant"),
-    ("$2b$", "bcrypt", "bcrypt PHC string, 2b variant"),
+    // bcrypt and its variants
+    ("$2b$", "bcrypt", "bcrypt PHC string, 2b variant (current)"),
     ("$2y$", "bcrypt", "bcrypt PHC string, 2y variant (PHP)"),
     ("$2a$", "bcrypt", "bcrypt PHC string, 2a variant (legacy)"),
-    ("$6$", "SHA-512 crypt", "Unix crypt(3) using SHA-512"),
+    (
+        "$2x$",
+        "bcrypt",
+        "bcrypt PHC string, 2x variant (legacy fix)",
+    ),
+    // Unix crypt(3) family
+    (
+        "$6$",
+        "SHA-512 crypt",
+        "Unix crypt(3) using SHA-512 (Linux default)",
+    ),
     ("$5$", "SHA-256 crypt", "Unix crypt(3) using SHA-256"),
-    ("$1$", "MD5 crypt", "Unix crypt(3) using MD5 (legacy)"),
+    ("$1$", "MD5 crypt", "Unix crypt(3) using MD5 (legacy, weak)"),
     ("$apr1$", "Apache MD5-crypt", "Apache htpasswd MD5 variant"),
+    ("$y$", "yescrypt", "modern Linux crypt(3) successor"),
+    // Application password hashes
+    ("$P$", "phpass", "WordPress / phpBB password hash"),
+    ("$H$", "phpass", "phpBB-style phpass variant"),
+    ("$S$", "Drupal 7 (SHA-512)", "Drupal 7 PHC-style hash"),
+    ("$7$", "scrypt", "scrypt PHC-style hash"),
+    // Django wrappers
     (
         "pbkdf2_sha256$",
         "Django PBKDF2-SHA256",
         "Django default password hash",
     ),
+    ("pbkdf2_sha1$", "Django PBKDF2-SHA1", "Django legacy PBKDF2"),
+    (
+        "bcrypt_sha256$",
+        "Django bcrypt-SHA256",
+        "Django bcrypt wrapper",
+    ),
+    ("argon2$", "Django Argon2", "Django Argon2 wrapper"),
+    // LDAP password schemes (base64 payload after the marker)
+    ("{SSHA}", "LDAP SSHA", "salted SHA-1, base64 payload"),
+    ("{SHA}", "LDAP SHA", "SHA-1, base64 payload"),
+    ("{SMD5}", "LDAP SMD5", "salted MD5, base64 payload"),
+    ("{MD5}", "LDAP MD5", "MD5, base64 payload"),
+    ("{CRYPT}", "LDAP CRYPT", "wraps a crypt(3) hash"),
 ];
 
 /// True if the text is non-empty and every character is a hex digit.
@@ -520,6 +552,31 @@ mod tests {
     fn md5_crypt_is_deprecated() {
         let report = audit("$1$salt$abcdefghijklmnopqrstuv").unwrap();
         assert_eq!(report.verdict, Verdict::Deprecated);
+    }
+
+    #[test]
+    fn phpass_prefix_is_recognized() {
+        let result = identify("$P$Bhole1234567890abcdefghij");
+        assert_eq!(result[0].algorithm, "phpass");
+        assert_eq!(result[0].confidence, Confidence::High);
+    }
+
+    #[test]
+    fn ldap_ssha_prefix_is_recognized() {
+        let result = identify("{SSHA}abcdefghijklmnopqrstuvwx");
+        assert_eq!(result[0].algorithm, "LDAP SSHA");
+    }
+
+    #[test]
+    fn yescrypt_prefix_is_recognized() {
+        let result = identify("$y$j9T$c2FsdA$aGFzaA");
+        assert_eq!(result[0].algorithm, "yescrypt");
+    }
+
+    #[test]
+    fn django_bcrypt_sha256_is_recognized() {
+        let result = identify("bcrypt_sha256$$2b$12$abcdefghijklmnopqrst");
+        assert_eq!(result[0].algorithm, "Django bcrypt-SHA256");
     }
 
     use proptest::prelude::*;
