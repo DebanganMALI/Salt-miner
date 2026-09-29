@@ -90,15 +90,29 @@ fn is_mysql5(text: &str) -> bool {
         .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase())
 }
 
+/// True for traditional 13-char DES crypt (legacy /etc/passwd).
+///
+/// The charset is `./0-9A-Za-z`. We reject all-lowercase strings so an
+/// ordinary 13-letter word like "cybersecurity" is not mistaken for a hash.
+fn is_descrypt(text: &str) -> bool {
+    const CHARSET: &str = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    text.len() == 13
+        && text.chars().all(|c| CHARSET.contains(c))
+        && !text.chars().all(|c| c.is_ascii_lowercase())
+}
+
 /// Algorithms that produce a hex string of this length, most common first.
 fn length_rules(len: usize) -> &'static [&'static str] {
     match len {
+        16 => &["MySQL323", "CRC-64"],
         32 => &["MD5", "NTLM", "MD4", "RIPEMD-128"],
         40 => &["SHA-1", "RIPEMD-160"],
+        48 => &["Tiger-192"],
         56 => &["SHA-224", "SHA3-224"],
         64 => &["SHA-256", "SHA3-256", "BLAKE2s-256"],
+        80 => &["RIPEMD-320"],
         96 => &["SHA-384", "SHA3-384"],
-        128 => &["SHA-512", "SHA3-512", "BLAKE2b-512"],
+        128 => &["SHA-512", "SHA3-512", "BLAKE2b-512", "Whirlpool"],
         _ => &[],
     }
 }
@@ -342,6 +356,15 @@ pub fn identify(input: &str) -> Vec<Candidate> {
         }
     }
 
+    // Traditional DES crypt: 13 chars, no prefix, `./0-9A-Za-z`.
+    if is_descrypt(trimmed) {
+        return vec![Candidate {
+            algorithm: "DES crypt".to_string(),
+            confidence: Confidence::Medium,
+            reason: "13 chars in `./0-9A-Za-z` — legacy crypt(3) format".to_string(),
+        }];
+    }
+
     if is_hex(trimmed) {
         let algorithms = length_rules(trimmed.len());
         let mut candidates = Vec::new();
@@ -577,6 +600,34 @@ mod tests {
     fn django_bcrypt_sha256_is_recognized() {
         let result = identify("bcrypt_sha256$$2b$12$abcdefghijklmnopqrst");
         assert_eq!(result[0].algorithm, "Django bcrypt-SHA256");
+    }
+
+    #[test]
+    fn des_crypt_is_recognized() {
+        let result = identify("kRq14pmccuMOA");
+        assert_eq!(result[0].algorithm, "DES crypt");
+        assert_eq!(result[0].confidence, Confidence::Medium);
+    }
+
+    #[test]
+    fn des_crypt_rejects_plain_word() {
+        let claimed = identify("cybersecurity")
+            .first()
+            .map(|c| c.algorithm == "DES crypt")
+            .unwrap_or(false);
+        assert!(!claimed);
+    }
+
+    #[test]
+    fn mysql323_length_is_recognized() {
+        let result = identify("5d2e19393cc5ef67");
+        assert_eq!(result[0].algorithm, "MySQL323");
+    }
+
+    #[test]
+    fn tiger192_length_is_recognized() {
+        let result = identify(&"a".repeat(48));
+        assert_eq!(result[0].algorithm, "Tiger-192");
     }
 
     use proptest::prelude::*;
