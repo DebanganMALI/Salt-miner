@@ -5,6 +5,8 @@ Identify and audit password hashes — offline.
 `saltminer` is the Python interface to the Saltminer engine (written in Rust).
 Give it a hash string and it tells you what algorithm most likely produced it,
 and whether that choice is still considered secure under current OWASP guidance.
+It recognises 45+ hash formats — bcrypt, the Argon2 family, the Unix crypt
+family, phpass, LDAP schemes, Django, MySQL, NetNTLM, and bare hex digests.
 
 ## Install
 
