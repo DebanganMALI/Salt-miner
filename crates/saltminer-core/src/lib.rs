@@ -388,6 +388,21 @@ pub fn identify(input: &str) -> Vec<Candidate> {
         return candidates;
     }
 
+    // Generic PHC-string fallback: a `$name$...` shape with no specific rule.
+    if let Some(rest) = trimmed.strip_prefix('$')
+        && let Some((algo, _)) = rest.split_once('$')
+        && !algo.is_empty()
+        && algo
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return vec![Candidate {
+            algorithm: format!("PHC string ({algo})"),
+            confidence: Confidence::Low,
+            reason: format!("`${algo}$...` shape — generic PHC, no specific rule"),
+        }];
+    }
+
     // Not hashes, but say what they actually are.
     if trimmed.starts_with("eyJ") {
         return vec![Candidate {
@@ -628,6 +643,14 @@ mod tests {
     fn tiger192_length_is_recognized() {
         let result = identify(&"a".repeat(48));
         assert_eq!(result[0].algorithm, "Tiger-192");
+    }
+
+    #[test]
+    fn unknown_phc_string_falls_back_to_generic() {
+        let result = identify("$pbkdf2-sha512$25000$c2FsdA$aGFzaA");
+        assert!(result[0].algorithm.contains("PHC"));
+        assert!(result[0].algorithm.contains("pbkdf2-sha512"));
+        assert_eq!(result[0].confidence, Confidence::Low);
     }
 
     use proptest::prelude::*;

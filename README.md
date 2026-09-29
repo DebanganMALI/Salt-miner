@@ -37,9 +37,11 @@ powers three interfaces: a **command-line tool**, a **desktop GUI**, and a
 
 ## Features
 
-- **Identify ~30 hash formats** by prefix, length, and character set — bcrypt,
-  the Argon2 family, the Unix crypt family, MySQL5, NetNTLMv1/v2, pwdump/NTLM,
-  and bare hex digests (MD5, SHA-1, SHA-256, SHA-512, and more).
+- **Identify 45+ hash formats** by prefix, length, and character set — bcrypt,
+  the Argon2 family, the Unix crypt family (SHA-512/256, MD5, yescrypt, DES),
+  phpass (WordPress/phpBB), LDAP schemes, Django, MySQL, NetNTLMv1/v2,
+  pwdump/NTLM, and bare hex digests (MD5, SHA-1, SHA-256, SHA-512, and more),
+  plus a generic PHC fallback for anything unrecognised.
 - **Security auditing** — parses PHC cost parameters and judges them against OWASP
   thresholds: `secure`, `weak-params`, `deprecated`, or `broken`, each with a reason.
 - **Recognises non-hashes** — tells you when you've pasted a JWT or a base64 blob
